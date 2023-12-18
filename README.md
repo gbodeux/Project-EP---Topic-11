@@ -6,7 +6,7 @@ import numpy as np
 
 # Load raster datasets (replace these with your actual file paths)
 slope_filepath = '/content/Topic 11/Slope.tif'
-stream_filepath = '/content/Topic 11/Stream_Network.tif'
+stream_filepath = '[/content/Topic 11/Stream_Network.tif](https://github.com/gbodeux/Project-EP-Topic-11/blob/main/Stream_Network.tif)'
 NH_filepath = '/content/Topic 11/NH_EVENT_DETECTION.tif'
 
 R_april_13_filepath = 'Downloads\EP\Topic11\DATA\Rainfall_images/2020-04-13_RAINFALL.tif'

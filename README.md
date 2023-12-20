@@ -11,10 +11,10 @@ natural_hazard_path = '/content/NH_EVENT_DETECTION.tif'
 slope_path = '/content/Slope.tif'
 stream_network_path = '/content/Stream_Network.tif'
 
-# Read raster data 
-natural_hazard = rasterio.open(natural_hazard_path).read(1)
-slope = rasterio.open(slope_path).read(1)
-stream_network = rasterio.open(stream_network_path).read(1)
+# Function to open a GeoTIFF file and return its data as a numpy array
+def open_geotiff(file_path):
+    with rasterio.open(file_path) as src:
+        return src.read(1)  # Assuming a single band GeoTIFF
 
 # Open the maps as numpy arrays
 natural_hazard_map = open_geotiff(natural_hazard_path)

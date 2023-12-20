@@ -114,7 +114,7 @@ rainfall_data = np.zeros((len(rainfall_files), rain_data_shape[0], rain_data_sha
 for i, rainfall_file in enumerate(rainfall_files):
     with rasterio.open(os.path.join(rainfall_folder, rainfall_file)) as src:
         resampled_data = src.read(out_shape=(rain_data_shape[0], rain_data_shape[1]), resampling=Resampling.bilinear)
-        rainfall_data[i, :, :] = resampled_data # /!\ ERROR name 'rainfall_data' is not defined
+        rainfall_data[i, :, :] = resampled_data
     
     
 # -----------------------------------------------------------------

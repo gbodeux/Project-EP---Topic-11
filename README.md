@@ -131,3 +131,45 @@ plt.ylabel('Rainfall (mm)')
 plt.grid(True)
 plt.show()
 
+# --------------------------
+# Task 8: Create function that calculates rainfall stats for whole area: X-day average/median/max/sum 
+# should be able to intake different X values, different starting dates
+# user should be able to make a decision if the statistic is calculated over the rainfall data,
+# prior/post this starting date -> If it is prior, the starting date should be included in the calculation
+
+def rainfall_statistics(rainfall_data, x_days, date_index, before):
+
+    # Extract relevant portion of the data based on date index 
+    if before:
+        data = rainfall_data[date_index - x_days + 1 : date_index + 1,:,:] # + 1 to include date_index in the calculation of x_days
+    else:
+        data = rainfall_data[date_index + 1 : date_index + 1 + x_days,:,:] # + 1 to remove date_index from the calculation
+
+    # Calculate rainfall statistics on the x_day period 
+    x_day_average = np.mean(data)
+    x_day_median = np.median(data)
+    x_day_max = np.max(data)
+    x_day_sum = np.sum(data)
+
+    # Store results into a dictionnary 
+    x_days_stats = {'mean': x_day_average, 'median': x_day_median, 'max': x_day_max, 'sum': x_day_sum}
+    return x_days_stats
+
+# ------------------
+# Task 9:  The event occurred on 17-04-2020 (index = 4, 5th day)
+# Calculate the statistics for X = 1,2 and 3 prior and post event /!\ create a for loop to avoid redundance
+
+X1_prior = rainfall_statistics(rainfall_data, 1, 4, True)
+X2_prior = rainfall_statistics(rainfall_data, 2, 4, True)
+X3_prior = rainfall_statistics(rainfall_data, 3, 4, True)
+
+X1_post = rainfall_statistics(rainfall_data, 1, 4, False)
+X2_post = rainfall_statistics(rainfall_data, 2, 4, False)
+X3_post = rainfall_statistics(rainfall_data, 3, 4, False)
+
+# Export all the results in one .csv file /!\ error: csv file (in user > isamo > results_all) shows same results for X1,2,3!
+
+final_results = pd.DataFrame([X1_prior, X2_prior, X3_prior, X1_post, X2_post, X3_post])
+csv_file_path = 'final_results.csv'
+final_results.to_csv(csv_file_path, index=False)
+

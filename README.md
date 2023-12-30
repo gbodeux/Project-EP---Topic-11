@@ -1,6 +1,6 @@
 # Project-EP-Topic-11
 # Part 1: Task 1-5
-
+#import the necessary packages
 import numpy as np
 import matplotlib.pyplot as plt
 import rasterio

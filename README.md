@@ -93,7 +93,7 @@ from rasterio.plot import show
 from rasterio.windows import Window
 from rasterio.enums import Resampling
 import matplotlib.pyplot as plt
-
+import pandas as pd
 # ----------------------------------------- 
 # Task 6: Read time series of rainfall maps
 rainfall_folder = '/content/Rainfall/'

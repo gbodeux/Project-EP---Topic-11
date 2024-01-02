@@ -132,7 +132,7 @@ plt.grid(True)
 plt.show()
 
 # --------------------------
-# Task 8: Create function that calculates rainfall stats for whole area: X-day average/median/max/sum 
+# Task 8: Create function that calculates rainfall statistics for whole area: X-day average/median/max/sum 
 # should be able to intake different X values, different starting dates
 # user should be able to make a decision if the statistic is calculated over the rainfall data,
 # prior/post this starting date -> If it is prior, the starting date should be included in the calculation

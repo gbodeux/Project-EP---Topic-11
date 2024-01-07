@@ -174,19 +174,19 @@ plt.show()
 # ---------------------------------------------------------------------------------------------------
 # Task 8: Create function that calculates rainfall stats for whole area: X-day average/median/max/sum
 
-def rainfall_statistics(rainfall_data, x_days, date_index, before=True):
+def rainfall_statistics(rainfall_data, x, event_date_index, before=True):
     # Determine the start and end indices for the data slice
     if before:
-        start_index = max(date_index - x_days + 1, 0)
-        end_index = date_index + 1
+        start_index = max(event_date_index - x + 1, 0) # max to avoid negative indices 
+        end_index = event_date_index + 1
     else:
-        start_index = date_index + 1
-        end_index = min(date_index + 1 + x_days, len(rainfall_data))
+        start_index = event_date_index + 1
+        end_index = min(event_date_index + 1 + x, len(rainfall_data)) # min to avoid indices out of available data scope 
 
     # Slice the rainfall data
-    data_slice = rainfall_data[start_index:end_index]
+    data_slice = rainfall_data[start_index:end_index] 
 
-    # Calculate statistics
+    # Calculate statistics 
     mean_rainfall = np.mean(data_slice)
     median_rainfall = np.median(data_slice)
     max_rainfall = np.max(data_slice)

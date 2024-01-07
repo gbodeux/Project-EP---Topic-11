@@ -75,46 +75,42 @@ plt.show()
 # Task 4: Discriminate landslide and flash flood locations from NH map
 
 # User's parameters
-slope_lower_limit = 20
-slope_upper_limit = 70
+slope_lower_limit = 5
+slope_upper_limit = 45
 stream_limit = 4
 
-def discriminate_locations(natural_hazard_map, slope_map, stream_network_map):
-    # Define landslide area: slope between 20 and 70 and NH map > 0.5
-    landslide_area = np.logical_and(slope_map >= slope_lower_limit, slope_map <= slope_upper_limit)
-    landslide_locations = np.logical_and(landslide_area, natural_hazard_map > nh_threshold)
-  
+def discriminate_locations(binary_map_result, slope_map, stream_network_map):
+    # Define landslide area: slope between 5 and 45 and natural_hazard_map == 1
+    landslide_area = np.logical_and(slope_map >= 5, slope_map <= 45)
+    landslide_locations = landslide_area & (natural_hazard_map == 1)
 
-    # Define flood area: stream network > 4 and NH map > 0.5
-    flood_area = stream_network_map > stream_limit
-    flood_locations = np.logical_and(flood_area, natural_hazard_map > nh_threshold)
+    # Define flashflood area: stream network > 4 and nh_threshold =1
+    flashflood_area = stream_network_map > 4
+    flashflood_locations = (stream_network_map > 4) & (natural_hazard_map == 1)
 
-    return landslide_locations, flood_locations 
+    return landslide_locations, flashflood_locations 
 
 
 # -------------------------------------------------------------------------------
 # Task 5: Create and export maps showing only landslide risk and flood risk areas   
-landslide_map, flood_map = discriminate_locations(binary_map_result, slope_map, stream_network_map)
-
+landslide_map, flashflood_map = discriminate_locations(binary_map_result, slope_map, stream_network_map)
 # Function to visualize and export map
 def visualize_and_export(image, output_path, title, colorbar_labels):
     plt.figure(figsize=(10, 10))
     img = plt.imshow(image, cmap='viridis')
-    cbar = plt.colorbar(img, ticks=[np.min(image), np.max(image)]) # mentions which colors represent min. & max. risks
+    cbar = plt.colorbar(img, ticks=[np.min(image), np.max(image)])
     cbar.set_ticklabels(colorbar_labels)
-    plt.axis('off') 
+    plt.axis('off')
     plt.title(title, fontsize=20)
     plt.savefig(output_path, dpi=600)
     plt.show()
 
 # Define the labels for the legends
-landslide_colorbar_labels = ['No Risk', 'Landslide Risk']
-flood_colorbar_labels = ['No Risk', 'Flood Risk']
-
-# Visualize and export both maps 
-visualize_and_export(landslide_map, 'landslide_area_map.png', 'Landslide Risk Areas', landslide_colorbar_labels) # the steeper the slope the higher the risk
-visualize_and_export(flood_map, 'flash_flood_area_map.png', 'Flash Flood Risk Areas', flood_colorbar_labels) # the larger the stream the higher the risk 
-
+landslide_colorbar_labels = ['No LandslideZones', 'Landslide area']
+flashflood_colorbar_labels = ['No FlashfloodZones', 'FlashFlood area']
+# Visualize and export
+visualize_and_export(landslide_map, 'landslide_area_map.png', 'Landslide Areas', landslide_colorbar_labels)
+visualize_and_export(flashflood_map, 'flashflood_area_map.png', 'FlashFlood Areas', flashflood_colorbar_labels)
 
 # ----------------
 # Part 2: Task 6-9

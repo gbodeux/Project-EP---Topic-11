@@ -1,0 +1,192 @@
+import tkinter as tk
+from tkinter import filedialog, simpledialog, messagebox
+import rasterio
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import os
+
+class HazardAnalysisGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Hazard Analysis GUI")
+
+        self.natural_hazard_map = None
+        self.slope_map = None
+        self.stream_network_map = None
+        self.binary_map_result = None
+        self.hazard_threshold = None
+        self.slope_threshold = None
+        self.stream_threshold = None
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        # Button to open Natural Hazard map
+        self.open_nh_map_button = tk.Button(self.root, text="Open Natural Hazard Map", command=self.open_nh_map)
+        self.open_nh_map_button.pack(pady=10)
+
+        # Button to open Slope map
+        self.open_slope_map_button = tk.Button(self.root, text="Open Slope Map", command=self.open_slope_map)
+        self.open_slope_map_button.pack(pady=10)
+
+        # Button to open Stream Network map
+        self.open_stream_map_button = tk.Button(self.root, text="Open Stream Network Map", command=self.open_stream_map)
+        self.open_stream_map_button.pack(pady=10)
+
+        # Button to visualize and export Slope map
+        self.visualize_export_slope_button = tk.Button(self.root, text="Export Slope Map", command=self.visualize_export_slope_map)
+        self.visualize_export_slope_button.pack(pady=10)
+        
+        # Button to visualize and export Stream Network map
+        self.visualize_export_stream_button = tk.Button(self.root, text="Export Stream Network Map", command=self.visualize_export_stream_map)
+        self.visualize_export_stream_button.pack(pady=10)
+       
+        # Entry and Button to set Hazard Threshold
+        self.hazard_threshold_label = tk.Label(self.root, text="Enter Hazard Threshold:")
+        self.hazard_threshold_label.pack(pady=5)
+        self.hazard_threshold_entry = tk.Entry(self.root)
+        self.hazard_threshold_entry.pack(pady=5)
+        self.set_hazard_threshold_button = tk.Button(self.root, text="Set Hazard Threshold", command=self.set_hazard_threshold)
+        self.set_hazard_threshold_button.pack(pady=5)
+        
+        # Button to create and visualize binary map
+        self.create_binary_map_button = tk.Button(self.root, text="Create Binary Map", command=self.create_binary_map)
+        self.create_binary_map_button.pack(pady=10)
+              
+        # Entry and Button to set Slope Threshold
+        self.slope_threshold_label = tk.Label(self.root, text="Enter Slope Threshold (min max) (Eg: 10 50):")
+        self.slope_threshold_label.pack(pady=5)
+        self.slope_threshold_entry = tk.Entry(self.root)
+        self.slope_threshold_entry.pack(pady=5)
+        self.set_slope_threshold_button = tk.Button(self.root, text="Set Slope Threshold", command=self.set_slope_threshold)
+        self.set_slope_threshold_button.pack(pady=5)
+
+        # Entry and Button to set Stream Threshold
+        self.stream_threshold_label = tk.Label(self.root, text="Enter Stream Threshold (from 0 to 8):")
+        self.stream_threshold_label.pack(pady=5)
+        self.stream_threshold_entry = tk.Entry(self.root)
+        self.stream_threshold_entry.pack(pady=5)
+        self.set_stream_threshold_button = tk.Button(self.root, text="Set Stream Threshold", command=self.set_stream_threshold)
+        self.set_stream_threshold_button.pack(pady=5)
+
+        # Button to discriminate and export landslide and flash flood areas
+        self.discriminate_export_button = tk.Button(self.root, text="Export Landslide & Flashflood Areas", command=self.discriminate_export_areas)
+        self.discriminate_export_button.pack(pady=10)
+
+    def open_nh_map(self):
+        nh_map_path = filedialog.askopenfilename(title="Select Natural Hazard Map")
+        self.natural_hazard_map = self.open_geotiff(nh_map_path)
+
+    def open_slope_map(self):
+        slope_map_path = filedialog.askopenfilename(title="Select Slope Map")
+        self.slope_map = self.open_geotiff(slope_map_path)
+
+    def open_stream_map(self):
+        stream_map_path = filedialog.askopenfilename(title="Select Stream Network Map")
+        self.stream_network_map = self.open_geotiff(stream_map_path)
+
+    def open_geotiff(self, file_path):
+        with rasterio.open(file_path) as src:
+            return src.read(1)
+
+    def set_hazard_threshold(self):
+        try:
+            self.hazard_threshold = float(self.hazard_threshold_entry.get())
+            messagebox.showinfo("Success", f"Hazard Threshold set to {self.hazard_threshold}")
+        except ValueError:
+            messagebox.showerror("Error", "Invalid input. Please enter a numeric value for Hazard Threshold.")
+
+    def set_slope_threshold(self):
+        try:
+            min_val, max_val = map(float, self.slope_threshold_entry.get().split())
+            self.slope_threshold = (min_val, max_val)
+            messagebox.showinfo("Success", f"Slope Threshold set to {self.slope_threshold}")
+        except ValueError:
+            messagebox.showerror("Error", "Invalid input. Please enter two numeric values for Slope Threshold (min max).")
+
+    def set_stream_threshold(self):
+        try:
+            self.stream_threshold = float(self.stream_threshold_entry.get())
+            messagebox.showinfo("Success", f"Stream Threshold set to {self.stream_threshold}")
+        except ValueError:
+            messagebox.showerror("Error", "Invalid input. Please enter a numeric value for Stream Threshold.")
+
+    def create_binary_map(self):
+        if self.natural_hazard_map is not None and self.hazard_threshold is not None:
+            self.binary_map_result = self.binary_map(self.natural_hazard_map, self.hazard_threshold)
+            # Visualize and export binary map
+            self.visualize_export_binary_map()
+        else:
+            self.show_error_message("Please open the Natural Hazard map and set hazard threshold first.")
+
+    def binary_map(self, natural_hazard_map, threshold):
+        return np.where(natural_hazard_map >= threshold, 1, 0)
+
+    def visualize_export_slope_map(self):
+        if self.slope_map is not None:
+            self.visualize_and_export(self.slope_map, 'slope_map.png', 'Slope Map', 'viridis')
+        else:
+            self.show_error_message("Please open the Slope map first.")
+    
+    def visualize_export_stream_map(self):
+        if self.stream_network_map is not None:
+            self.visualize_and_export(self.stream_network_map, 'stream_network_map.png', 'Stream Network Map', 'cividis')
+        else:
+            self.show_error_message("Please open the Stream Network map first.")
+
+    def visualize_and_export(self, image, output_path, title, cmap):
+        plt.figure(figsize=(10, 10))
+        plt.imshow(image, cmap)
+        plt.colorbar()
+        plt.title(title, fontsize=20)
+        plt.axis('off')
+        plt.savefig(output_path, dpi=600)
+        plt.show()
+        
+    def visualize_and_export_binary(self, image, output_path, title):
+        cmap_discrete = ListedColormap(['black', 'white'])
+        plt.figure(figsize=(10, 10))
+        img = plt.imshow(image, cmap=cmap_discrete, interpolation='nearest')
+        cbar = plt.colorbar(img, ticks=[0, 1], orientation='horizontal', fraction=0.046, pad=0.1)
+        cbar.set_ticklabels(['Non-affected', 'Affected'])
+        plt.title(title, fontsize=20)
+        plt.axis('off')
+        plt.savefig(output_path, dpi=600)
+        plt.show()    
+ 
+    def visualize_export_binary_map(self):
+        if self.binary_map_result is not None:
+            self.visualize_and_export_binary(self.binary_map_result, 'binary_map.png', 'Binary Hazard Map')
+        else:
+            self.show_error_message("Please create the binary map first.")    
+ 
+    def discriminate_export_areas(self):
+        if self.slope_map is not None and self.stream_network_map is not None and self.slope_threshold is not None and self.stream_threshold is not None:
+            landslide_map, flashflood_map = self.discriminate_locations(self.binary_map_result, self.slope_map, self.stream_network_map)
+            # Visualize and export landslide map
+            self.visualize_and_export_binary(landslide_map, 'landslide_map.png', 'Landslide Areas')
+            # Visualize and export flashflood map
+            self.visualize_and_export_binary(flashflood_map, 'flashflood_map.png', 'FlashFlood Areas')
+        else:
+            self.show_error_message("Please open the Slope and Stream Network maps and set the thresholds first.")
+
+    def discriminate_locations(self, binary_map_result, slope_map, stream_network_map):
+        # Define landslide area: slope between 5 and 45 and natural_hazard_map == 1
+        landslide_area = np.logical_and(slope_map >= self.slope_threshold[0], slope_map <= self.slope_threshold[1])
+        landslide_locations = landslide_area & (binary_map_result == 1)
+
+        # Define flashflood area: stream network > 4 and nh_threshold =1
+        flashflood_area = stream_network_map > self.stream_threshold
+        flashflood_locations = (stream_network_map > self.stream_threshold) & (binary_map_result == 1)
+
+        return landslide_locations, flashflood_locations
+
+    def show_error_message(self, message):
+        messagebox.showerror("Error", message)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = HazardAnalysisGUI(root)
+    root.mainloop()

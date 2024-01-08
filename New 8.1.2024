@@ -51,23 +51,23 @@ visualize_and_export(stream_network_map, 'stream_network_map.png', 'Stream Netwo
 # ------------------------------------------------------------------------------------------------------------------
 # Task 3: Create a function that ingests the NH map and makes a binary map (0/1) for non-affected and affected areas
 
-# Create a binary numpy array with 0/1 values
-def binary_map(natural_hazard_map, threshold):
-    binary_map = np.where(natural_hazard_map >= threshold, 1, 0)
-    return binary_map
+# Create a binary numpy array with 0 for non-affected areas and 1 for affected areas
+def binary_map(natural_hazard_map):
+    affected_map = np.where(natural_hazard_map > 0, 1, 0)
+    return affected_map
 
-nh_threshold = 0.5  # User can choose the threshold
-binary_map_result = binary_map(natural_hazard_map, nh_threshold)
-print(binary_map_result)
+# Create the binary map
+affected_map = binary_map(natural_hazard_map)
 
-# Visualize binary map
+# Visualize the binary map with legend
 plt.figure(figsize=(10, 10))
-cmap_discrete2 = ListedColormap(['black','white'])
-plt.imshow(binary_map_result, cmap=cmap_discrete2, interpolation='nearest') 
-cbar = plt.colorbar(shrink=0.25)
-cbar.set_ticks([0, 1])
-cbar.set_ticklabels(['0 Non-affected', '1 Affected'])
-plt.title('Binary Hazard Map', fontsize=20)
+cmap_discrete = ListedColormap(['white', 'red'])  # Adjust the color for affected areas
+plt.imshow(affected_map, cmap=cmap_discrete, interpolation='nearest') 
+
+# Add colorbar legend
+cbar = plt.colorbar(ticks=[0, 1])
+cbar.set_ticklabels(['Non-Affected', 'Affected'])
+plt.title('Binary Hazard Map (0 for Non-Affected, 1 for Affected)', fontsize=20)
 plt.axis('off')
 plt.show()
 

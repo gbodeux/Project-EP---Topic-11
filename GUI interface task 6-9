@@ -23,8 +23,7 @@ def read_rainfall_data(folder_path):
 
     # Read the first rainfall map to get metadata
     with rasterio.open(os.path.join(folder_path, rainfall_files[0])) as src:
-        meta = src.meta
-        rain_data_shape = src.shape
+         rain_data_shape = src.shape
 
     # Initialize a 3D array to store all rainfall maps
     rainfall_data = np.zeros((len(rainfall_files), rain_data_shape[0], rain_data_shape[1]), dtype=np.float32)
@@ -71,11 +70,6 @@ def plot_spatially_averaged_rainfall():
     def extract_date_from_filename(filename):
         date_str = filename.split('_')[0]  # Get the date part before '_'
         return datetime.strptime(date_str, '%Y-%m-%d')
-
-    # Read the dates from filenames
-    rainfall_dates = [extract_date_from_filename(f) for f in rainfall_files]
-
-    return rainfall_data, rainfall_dates
 
 # Function to calculate rainfall statistics
 def rainfall_statistics(x, event_date):

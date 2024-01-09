@@ -1,0 +1,193 @@
+import os
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import rasterio
+import numpy as np
+import pandas as pd
+from datetime import datetime
+from rasterio.enums import Resampling
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
+# Global variables to store data for plotting
+rainfall_data = None
+rainfall_dates = None
+
+# Function to read time series of rainfall maps
+def read_rainfall_data(folder_path):
+    global rainfall_data, rainfall_dates
+
+    # List all rainfall files in the folder
+    rainfall_files = [f for f in os.listdir(folder_path) if f.endswith('.tif')]
+    rainfall_files.sort()  # Sort files to ensure correct temporal order
+
+    # Read the first rainfall map to get metadata
+    with rasterio.open(os.path.join(folder_path, rainfall_files[0])) as src:
+        meta = src.meta
+        rain_data_shape = src.shape
+
+    # Initialize a 3D array to store all rainfall maps
+    rainfall_data = np.zeros((len(rainfall_files), rain_data_shape[0], rain_data_shape[1]), dtype=np.float32)
+
+    # Store all rainfall maps into the 3D array
+    for i, rainfall_file in enumerate(rainfall_files):
+        with rasterio.open(os.path.join(folder_path, rainfall_file)) as src:
+            resampled_data = src.read(out_shape=(rain_data_shape[0], rain_data_shape[1]), resampling=Resampling.bilinear)
+            rainfall_data[i, :, :] = resampled_data
+
+    # Assuming filenames are in the format 'YYYY-MM-DD_Rainfall.tif'
+    def extract_date_from_filename(filename):
+        date_str = filename.split('_')[0]  # Get the date part before '_'
+        return datetime.strptime(date_str, '%Y-%m-%d')
+
+    # Read the dates from filenames
+    rainfall_dates = [extract_date_from_filename(f) for f in rainfall_files]
+
+    return rainfall_data, rainfall_dates
+
+# Function to plot spatially averaged daily rainfall as time series
+def plot_spatially_averaged_rainfall():
+    global rainfall_data, rainfall_dates
+
+    if rainfall_data is not None and rainfall_dates is not None:
+        # Calculate spatially averaged daily rainfall
+        spatially_averaged_rainfall = np.mean(rainfall_data, axis=(1, 2))
+
+        # Plot time series with DD-MM format dates
+        plt.figure(figsize=(12, 6))
+        plt.plot(rainfall_dates, spatially_averaged_rainfall, marker='o', linestyle='-', color='b')
+        plt.title('Spatially Averaged Daily Rainfall Time Series')
+        plt.xlabel('Date')
+        plt.ylabel('Rainfall (mm)')
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d-%m'))
+        plt.gca().xaxis.set_major_locator(mdates.DayLocator())
+        plt.gcf().autofmt_xdate()  # Auto-format the dates for better readability
+        plt.grid(True)
+        plt.show()
+    else:
+        messagebox.showerror("Error", "Please load rainfall data first.")
+
+    # Assuming filenames are in the format 'YYYY-MM-DD_Rainfall.tif'
+    def extract_date_from_filename(filename):
+        date_str = filename.split('_')[0]  # Get the date part before '_'
+        return datetime.strptime(date_str, '%Y-%m-%d')
+
+    # Read the dates from filenames
+    rainfall_dates = [extract_date_from_filename(f) for f in rainfall_files]
+
+    return rainfall_data, rainfall_dates
+
+# Function to calculate rainfall statistics
+def rainfall_statistics(x, event_date):
+    global rainfall_data, rainfall_dates
+
+    if rainfall_data is not None and rainfall_dates is not None:
+        # Find the index of the event date in the rainfall dates list
+        event_date_index = rainfall_dates.index(event_date)
+
+        # Initialize a list to hold all statistics
+        all_stats = []
+
+        # Loop to calculate statistics for x days before and after the event
+        for period in ['Before', 'After']:
+            # Convert 'Before' and 'After' to True and False to avoid confusion
+            before = (period == 'Before')
+
+            # Determine the start and end indices for the data slice
+            if before:
+                start_index = max(event_date_index - x + 1, 0)
+                end_index = event_date_index + 1
+            else:
+                start_index = event_date_index + 1
+                end_index = min(event_date_index + 1 + x, len(rainfall_data))
+
+            # Slice the rainfall data
+            data_slice = rainfall_data[start_index:end_index]
+
+            # Calculate statistics
+            mean_rainfall = np.mean(data_slice)
+            median_rainfall = np.median(data_slice)
+            max_rainfall = np.max(data_slice)
+            sum_rainfall = np.sum(data_slice)
+
+            if before:
+                stat_date = rainfall_dates[event_date_index - x]  # Adjusted to correctly reflect the 'Before' period
+            else:
+                stat_date = rainfall_dates[min(event_date_index + x, len(rainfall_data) - 1)]  # 'After' period
+
+            # Append statistics to the list
+            all_stats.append((stat_date, period, x, mean_rainfall, median_rainfall, max_rainfall, sum_rainfall))
+
+        return all_stats
+    else:
+        return None
+
+# Function to handle button click to calculate and export statistics
+def calculate_and_export_statistics():
+    global rainfall_data, rainfall_dates
+
+    if rainfall_data is not None and rainfall_dates is not None:
+        # Get user inputs
+        event_date_str = entry_event_date.get()
+        event_date = datetime.strptime(event_date_str, '%Y-%m-%d')
+
+        # List to hold all statistics
+        all_stats = []
+
+        # Loop to calculate statistics for 1, 2, and 3 days before and after the event
+        for x in [1, 2, 3]:
+            stats = rainfall_statistics(x, event_date)
+            all_stats.extend(stats)
+
+        # Convert to DataFrame
+        columns = ['Date', 'Period', 'Days', 'Mean', 'Median', 'Max', 'Sum']
+        final_results = pd.DataFrame(all_stats, columns=columns)
+        messagebox.showinfo("Statistics Calculated", "Statistics calculated successfully.")
+
+        # Export to CSV
+        export_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")], title="Export Statistics To CSV")
+        if export_path:
+            final_results.to_csv(export_path, index=False)
+            messagebox.showinfo("Export Successful", f"Statistics exported to {export_path}")
+        else:
+            messagebox.showwarning("Export Cancelled", "Export operation cancelled.")
+    else:
+        messagebox.showerror("Error", "Please load rainfall data first.")
+
+# Create the main GUI window
+root = tk.Tk()
+root.title("Rainfall Data Analysis")
+
+# Function to load rainfall data and update UI elements
+def load_rainfall_data():
+    global rainfall_data, rainfall_dates
+    folder_path = filedialog.askdirectory(title="Select Rainfall Maps Folder")
+    if folder_path:
+        rainfall_data, rainfall_dates = read_rainfall_data(folder_path)
+        messagebox.showinfo("Data Loaded", "Rainfall data loaded successfully.")
+
+# Button to load rainfall data
+load_data_button = tk.Button(root, text="Load Rainfall Data", command=load_rainfall_data)
+load_data_button.pack(pady=20)
+
+# Button to plot spatially averaged daily rainfall time series
+plot_data_button = tk.Button(root, text="Plot Spatially Averaged Rainfall", command=plot_spatially_averaged_rainfall)
+plot_data_button.pack(pady=10)
+
+# Create a frame for the statistics section
+statistics_frame = tk.Frame(root)
+statistics_frame.pack(pady=20)
+
+# Labels and entry fields for user input
+label_event_date = tk.Label(statistics_frame, text="Event Date (YYYY-MM-DD):")
+label_event_date.grid(row=0, column=0, padx=5, pady=5, sticky='e')
+
+entry_event_date = tk.Entry(statistics_frame)
+entry_event_date.grid(row=0, column=1, padx=5, pady=5)
+
+# Button to calculate and export statistics
+calculate_button = tk.Button(statistics_frame, text="Calculate and Export Statistics", command=calculate_and_export_statistics)
+calculate_button.grid(row=1, column=0, columnspan=2, pady=10)
+
+# Run the GUI
+root.mainloop()

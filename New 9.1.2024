@@ -1,0 +1,234 @@
+# Project-EP-Topic-11
+# Part 1: Task 1-5
+
+import numpy as np
+import matplotlib.pyplot as plt
+import rasterio
+import pandas as pd
+from matplotlib.colors import ListedColormap
+
+# -------------------------------------------------------------------------------
+# Task 1: Open the natural hazard, slope, and stream network maps as numpy arrays
+natural_hazard_path = 'Downloads\EP\Topic11\DATA/Natural_hazard_image/NH_EVENT_DETECTION.tif'
+slope_map_path = 'Downloads\EP\Topic11\DATA\Land_surface_data\Slope.tif'
+stream_network_path = 'Downloads\EP\Topic11\DATA\Land_surface_data\Stream_Network.tif'
+
+# Define a function to open a GeoTIFF file (georeferenced raster file) and return its data as a numpy array
+def open_geotiff(file_path):
+    with rasterio.open(file_path) as src:
+        return src.read(1) # 1 indicates to return the first band of the raster (our 3 files are single band)
+    
+# Open the maps as numpy arrays
+natural_hazard_map = open_geotiff(natural_hazard_path)
+slope_map = open_geotiff(slope_map_path)
+stream_network_map = open_geotiff(stream_network_path)
+
+# Print the numpy array results 
+print("Natural Hazard Array:")
+print(natural_hazard_map)
+print("\nSlope Array:") # \n allows to skip a line between the printed arrays
+print(slope_map)
+print("\nStream Network Array:")
+print(stream_network_map)
+
+# ------------------------------------------------------------------------------------
+# Task 2: Visualize the slope and stream network map and export them as 600 dpi images
+def visualize_and_export(image, output_path, title, cmap):
+    plt.figure(figsize=(10, 10))
+    plt.imshow(image, cmap)
+    plt.colorbar() 
+    plt.title(title, fontsize=20)  # Setting the title of the plot
+    plt.axis('off')
+    plt.savefig(output_path, dpi=600) # 600 dots/inch = resolution of saved image
+    plt.show()
+
+# Create a color bar with discrete values for Stream Network Map 
+cmap_discrete = ListedColormap(['white', 'azure', 'lightcyan', 'lightblue', 'skyblue', 'deepskyblue', 'cornflowerblue','royalblue', 'darkblue'])
+
+# Visualize and export both the slope map and the stream network map
+visualize_and_export(slope_map, 'slope_map.png', 'Slope Map', 'viridis')
+visualize_and_export(stream_network_map, 'stream_network_map.png', 'Stream Network Map', cmap_discrete)
+
+# ------------------------------------------------------------------------------------------------------------------
+# Task 3: Create a function that ingests the NH map and makes a binary map (0/1) for non-affected and affected areas
+
+# Create a binary numpy array with 0/1 values
+def binary_map(natural_hazard_map, threshold):
+    binary_map = np.where(natural_hazard_map >= threshold, 1, 0)
+    return binary_map
+
+nh_threshold = 0.5  # User can choose the threshold
+binary_map_result = binary_map(natural_hazard_map, nh_threshold)
+print(binary_map_result) 
+
+# Visualize binary map
+plt.figure(figsize=(10, 10))
+cmap_discrete2 = ListedColormap(['black','white'])
+plt.imshow(binary_map_result, cmap=cmap_discrete2, interpolation='nearest')
+cbar = plt.colorbar(shrink=0.25)
+cbar.set_ticks([0, 1])
+cbar.set_ticklabels(['0 Non-affected', '1 Affected'])
+plt.title('Binary Hazard Map', fontsize=20)
+plt.axis('off')
+plt.show()
+
+# --------------------------------------------------------------------
+# Task 4: Discriminate landslide and flash flood locations from NH (binary) map
+
+# User's parameters
+slope_lower_limit = 5
+slope_upper_limit = 45
+stream_limit = 4
+
+def discriminate_locations(binary_map_result, slope_map, stream_network_map):
+    
+    # Define landslide area: slope between 5 and 45 and NH affected areas (binary_map_result = 1)
+    landslide_area = np.logical_and(slope_map >= slope_lower_limit, slope_map <= slope_upper_limit)
+    landslide_locations = np.logical_and(landslide_area, binary_map_result == 1)
+
+    # Define flashflood area: stream network > 4 and NH affected areas (binary_map_result = 1)
+    flashflood_area = stream_network_map > stream_limit
+    flashflood_locations = np.logical_and(flashflood_area, binary_map_result == 1)
+
+    return landslide_locations, flashflood_locations 
+
+# -------------------------------------------------------------------------------
+# Task 5: Create and export maps showing only landslide risk and flood risk areas   
+landslide_map, flashflood_map = discriminate_locations(binary_map_result, slope_map, stream_network_map)
+
+# Function to visualize and export map
+def visualize_and_export(image, output_path, title, colorbar_labels):
+    plt.figure(figsize=(10, 10))
+    img = plt.imshow(image, cmap='viridis')
+    cbar = plt.colorbar(img, ticks=[np.min(image), np.max(image)])
+    cbar.set_ticklabels(colorbar_labels)
+    plt.axis('off')
+    plt.title(title, fontsize=20)
+    plt.savefig(output_path, dpi=600)
+    plt.show()
+
+# Define the labels for the legends
+landslide_colorbar_labels = ['Less exposed areas', 'Most exposed areas']
+flashflood_colorbar_labels = ['Less exposed areas', 'Most exposed areas']
+
+# Visualize and export
+visualize_and_export(landslide_map, 'landslide_area_map.png', 'Landslide Areas', landslide_colorbar_labels)
+visualize_and_export(flashflood_map, 'flashflood_area_map.png', 'Flash Flood Areas', flashflood_colorbar_labels)
+
+# ----------------
+# Part 2: Task 6-9
+
+import os
+from rasterio.enums import Resampling
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from datetime import datetime
+
+# -----------------------------------------
+# Task 6: Read time series of rainfall maps
+rainfall_folder = 'Downloads\EP\Topic11\DATA\Rainfall_images'
+
+# List all rainfall files in the folder
+rainfall_files = [f for f in os.listdir(rainfall_folder) if f.endswith('.tif')]
+rainfall_files.sort()  # Sort files to ensure correct temporal order
+
+# Read the first rainfall map to get metadata
+with rasterio.open(os.path.join(rainfall_folder, rainfall_files[0])) as src:
+    meta = src.meta
+    rain_data_shape = src.shape
+
+# Initialize a 3D array to store all rainfall maps
+rainfall_data = np.zeros((len(rainfall_files), rain_data_shape[0], rain_data_shape[1]), dtype=np.float32)
+
+# Store all rainfall maps into the 3D array
+for i, rainfall_file in enumerate(rainfall_files):
+    with rasterio.open(os.path.join(rainfall_folder, rainfall_file)) as src:
+        resampled_data = src.read(out_shape=(rain_data_shape[0], rain_data_shape[1]), resampling=Resampling.bilinear)
+        rainfall_data[i, :, :] = resampled_data
+
+# -----------------------------------------------------------------
+# Task 7: Plot the spatially averaged daily rainfall as time series
+# Calculate spatially averaged daily rainfall
+spatially_averaged_rainfall = np.mean(rainfall_data, axis=(1, 2))
+
+# Assuming filenames are in the format 'YYYY-MM-DD_Rainfall.tif'
+def extract_date_from_filename(filename):
+    date_str = filename.split('_')[0]  # Get the date part before '_'
+    return datetime.strptime(date_str, '%Y-%m-%d')
+
+# Read the dates from filenames
+rainfall_dates = [extract_date_from_filename(f) for f in rainfall_files]
+
+# Plot time series with DD-MM format dates
+plt.figure(figsize=(12, 6))
+plt.plot(rainfall_dates, spatially_averaged_rainfall, marker='o', linestyle='-', color='b')
+plt.title('Spatially Averaged Daily Rainfall Time Series')
+plt.xlabel('Date')
+plt.ylabel('Rainfall (mm)')
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d-%m'))
+plt.gca().xaxis.set_major_locator(mdates.DayLocator())
+plt.gcf().autofmt_xdate()  # Auto-format the dates for better readability
+plt.grid(True)
+plt.show()
+
+# --------------------------------------------------------------------------------------------------------
+# Task 8: Create function that calculates rainfall statistics for whole area: X-day average/median/max/sum
+def rainfall_statistics(rainfall_data, x, event_date_index, before=True):
+    # Determine the start and end of data slice of interest via corresponding indexes
+    if before:
+        start_index = max(event_date_index - x + 1, 0) # max to avoid negative indices 
+        end_index = event_date_index + 1
+    else:
+        start_index = event_date_index + 1
+        end_index = min(event_date_index + 1 + x, len(rainfall_data)) # min to avoid indices out of available data scope 
+
+    # Determine data slice of interest in rainfall data
+    data_slice = rainfall_data[start_index:end_index]
+
+    # Calculate statistics 
+    mean_rainfall = np.mean(data_slice)
+    median_rainfall = np.median(data_slice)
+    max_rainfall = np.max(data_slice)
+    sum_rainfall = np.sum(data_slice)
+
+    return mean_rainfall, median_rainfall, max_rainfall, sum_rainfall
+
+# ---------------------------------------------------
+# Task 9: The event occurred on April 17th 2020, calculate the statistics for X = 1,2 and 3 prior and post event
+
+# User inputs the event date
+event_date_str = input("Enter the event date (in the format YYYY-MM-DD): ")
+
+# Convert the event date from string to datetime object
+event_date = datetime.strptime(event_date_str, '%Y-%m-%d')
+
+# Find the index of the event date in the rainfall dates list
+event_date_index = rainfall_dates.index(event_date)
+
+# List to hold all statistics
+all_stats = []
+
+# Loop to calculate statistics for 1, 2, and 3 days before and after the event
+for x in [1, 2, 3]:
+    for period in ['Before', 'After']:
+        # Convert 'Before' and 'After' to True and False to avoid confusion
+        before = (period == 'Before')
+
+        # Call the statistics calculation function with the event date index
+        mean, median, max_, sum_ = rainfall_statistics(rainfall_data, x, event_date_index, before)
+
+        if before:
+            stat_date = rainfall_dates[event_date_index - x]  # Adjusted to correctly reflect the 'Before' period
+        else:
+            stat_date = rainfall_dates[min(event_date_index + x, len(rainfall_data) - 1)]  # 'After' period
+
+        # Append statistics to the list
+        all_stats.append((stat_date, period, x, mean, median, max_, sum_))
+
+# Convert to DataFrame
+columns = ['Date', 'Period', 'Days', 'Mean', 'Median', 'Max', 'Sum']
+final_results = pd.DataFrame(all_stats, columns=columns)
+
+# Export to CSV
+csv_file_path = 'final_results.csv'
+final_results.to_csv(csv_file_path, index=False) 

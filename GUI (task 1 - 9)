@@ -1,0 +1,381 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Jan  9 20:49:36 2024
+
+@author: PT000007
+"""
+import os
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import rasterio
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+import matplotlib.dates as mdates
+import pandas as pd
+from datetime import datetime
+from rasterio.enums import Resampling
+
+class HazardAnalysisGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Hazard Analysis GUI")
+
+        self.natural_hazard_map = None
+        self.slope_map = None
+        self.stream_network_map = None
+        self.binary_map_result = None
+        self.hazard_threshold = None
+        self.slope_threshold = None
+        self.stream_threshold = None
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        # Button to open Natural Hazard map
+        self.open_nh_map_button = tk.Button(self.root, text="Open Natural Hazard Map", command=self.open_nh_map)
+        self.open_nh_map_button.pack(pady=10)
+
+        # Button to open Slope map
+        self.open_slope_map_button = tk.Button(self.root, text="Open Slope Map", command=self.open_slope_map)
+        self.open_slope_map_button.pack(pady=10)
+
+        # Button to open Stream Network map
+        self.open_stream_map_button = tk.Button(self.root, text="Open Stream Network Map", command=self.open_stream_map)
+        self.open_stream_map_button.pack(pady=10)
+
+        # Button to visualize and export Slope map
+        self.visualize_export_slope_button = tk.Button(self.root, text="Export Slope Map", command=self.visualize_export_slope_map)
+        self.visualize_export_slope_button.pack(pady=10)
+        
+        # Button to visualize and export Stream Network map
+        self.visualize_export_stream_button = tk.Button(self.root, text="Export Stream Network Map", command=self.visualize_export_stream_map)
+        self.visualize_export_stream_button.pack(pady=10)
+       
+        # Entry and Button to set Hazard Threshold
+        self.hazard_threshold_label = tk.Label(self.root, text="Enter Hazard Threshold:")
+        self.hazard_threshold_label.pack(pady=5)
+        self.hazard_threshold_entry = tk.Entry(self.root)
+        self.hazard_threshold_entry.pack(pady=5)
+        self.set_hazard_threshold_button = tk.Button(self.root, text="Set Hazard Threshold", command=self.set_hazard_threshold)
+        self.set_hazard_threshold_button.pack(pady=5)
+        
+        # Button to create and visualize binary map
+        self.create_binary_map_button = tk.Button(self.root, text="Create Binary Map", command=self.create_binary_map)
+        self.create_binary_map_button.pack(pady=10)
+              
+        # Entry and Button to set Slope Threshold
+        self.slope_threshold_label = tk.Label(self.root, text="Enter Slope Threshold (min max) (Eg: 10 50):")
+        self.slope_threshold_label.pack(pady=5)
+        self.slope_threshold_entry = tk.Entry(self.root)
+        self.slope_threshold_entry.pack(pady=5)
+        self.set_slope_threshold_button = tk.Button(self.root, text="Set Slope Threshold", command=self.set_slope_threshold)
+        self.set_slope_threshold_button.pack(pady=5)
+
+        # Entry and Button to set Stream Threshold
+        self.stream_threshold_label = tk.Label(self.root, text="Enter Stream Threshold (from 0 to 8):")
+        self.stream_threshold_label.pack(pady=5)
+        self.stream_threshold_entry = tk.Entry(self.root)
+        self.stream_threshold_entry.pack(pady=5)
+        self.set_stream_threshold_button = tk.Button(self.root, text="Set Stream Threshold", command=self.set_stream_threshold)
+        self.set_stream_threshold_button.pack(pady=5)
+
+        # Button to discriminate and export landslide and flash flood areas
+        self.discriminate_export_button = tk.Button(self.root, text="Export Landslide & Flashflood Areas", command=self.discriminate_export_areas)
+        self.discriminate_export_button.pack(pady=10)
+
+    def open_nh_map(self):
+        nh_map_path = filedialog.askopenfilename(title="Select Natural Hazard Map")
+        self.natural_hazard_map = self.open_geotiff(nh_map_path)
+
+    def open_slope_map(self):
+        slope_map_path = filedialog.askopenfilename(title="Select Slope Map")
+        self.slope_map = self.open_geotiff(slope_map_path)
+
+    def open_stream_map(self):
+        stream_map_path = filedialog.askopenfilename(title="Select Stream Network Map")
+        self.stream_network_map = self.open_geotiff(stream_map_path)
+
+    def open_geotiff(self, file_path):
+        with rasterio.open(file_path) as src:
+            return src.read(1)
+
+    def set_hazard_threshold(self):
+        try:
+            self.hazard_threshold = float(self.hazard_threshold_entry.get())
+            messagebox.showinfo("Success", f"Hazard Threshold set to {self.hazard_threshold}")
+        except ValueError:
+            messagebox.showerror("Error", "Invalid input. Please enter a numeric value for Hazard Threshold.")
+
+    def set_slope_threshold(self):
+        try:
+            min_val, max_val = map(float, self.slope_threshold_entry.get().split())
+            self.slope_threshold = (min_val, max_val)
+            messagebox.showinfo("Success", f"Slope Threshold set to {self.slope_threshold}")
+        except ValueError:
+            messagebox.showerror("Error", "Invalid input. Please enter two numeric values for Slope Threshold (min max).")
+
+    def set_stream_threshold(self):
+        try:
+            self.stream_threshold = float(self.stream_threshold_entry.get())
+            messagebox.showinfo("Success", f"Stream Threshold set to {self.stream_threshold}")
+        except ValueError:
+            messagebox.showerror("Error", "Invalid input. Please enter a numeric value for Stream Threshold.")
+
+    def create_binary_map(self):
+        if self.natural_hazard_map is not None and self.hazard_threshold is not None:
+            self.binary_map_result = self.binary_map(self.natural_hazard_map, self.hazard_threshold)
+            # Visualize and export binary map
+            self.visualize_export_binary_map()
+        else:
+            self.show_error_message("Please open the Natural Hazard map and set hazard threshold first.")
+
+    def binary_map(self, natural_hazard_map, threshold):
+        return np.where(natural_hazard_map >= threshold, 1, 0)
+
+    def visualize_export_slope_map(self):
+        if self.slope_map is not None:
+            self.visualize_and_export(self.slope_map, 'slope_map.png', 'Slope Map', 'viridis')
+        else:
+            self.show_error_message("Please open the Slope map first.")
+    
+    def visualize_export_stream_map(self):
+        if self.stream_network_map is not None:
+            self.visualize_and_export(self.stream_network_map, 'stream_network_map.png', 'Stream Network Map', 'cividis')
+        else:
+            self.show_error_message("Please open the Stream Network map first.")
+
+    def visualize_and_export(self, image, output_path, title, cmap):
+        plt.figure(figsize=(10, 10))
+        plt.imshow(image, cmap)
+        plt.colorbar()
+        plt.title(title, fontsize=20)
+        plt.axis('off')
+        plt.savefig(output_path, dpi=600)
+        plt.show()
+        
+    def visualize_and_export_binary(self, image, output_path, title):
+        cmap_discrete = ListedColormap(['black', 'white'])
+        plt.figure(figsize=(10, 10))
+        img = plt.imshow(image, cmap=cmap_discrete, interpolation='nearest')
+        cbar = plt.colorbar(img, ticks=[0, 1], orientation='horizontal', fraction=0.046, pad=0.1)
+        cbar.set_ticklabels(['Non-affected', 'Affected'])
+        plt.title(title, fontsize=20)
+        plt.axis('off')
+        plt.savefig(output_path, dpi=600)
+        plt.show()    
+ 
+    def visualize_export_binary_map(self):
+        if self.binary_map_result is not None:
+            self.visualize_and_export_binary(self.binary_map_result, 'binary_map.png', 'Binary Hazard Map')
+        else:
+            self.show_error_message("Please create the binary map first.")    
+ 
+    def discriminate_export_areas(self):
+        if self.slope_map is not None and self.stream_network_map is not None and self.slope_threshold is not None and self.stream_threshold is not None:
+            landslide_map, flashflood_map = self.discriminate_locations(self.binary_map_result, self.slope_map, self.stream_network_map)
+            # Visualize and export landslide map
+            self.visualize_and_export_binary(landslide_map, 'landslide_map.png', 'Landslide Areas')
+            # Visualize and export flashflood map
+            self.visualize_and_export_binary(flashflood_map, 'flashflood_map.png', 'FlashFlood Areas')
+        else:
+            self.show_error_message("Please open the Slope and Stream Network maps and set the thresholds first.")
+
+    def discriminate_locations(self, binary_map_result, slope_map, stream_network_map):
+        # Define landslide area: slope between 5 and 45 and natural_hazard_map == 1
+        landslide_area = np.logical_and(slope_map >= self.slope_threshold[0], slope_map <= self.slope_threshold[1])
+        landslide_locations = landslide_area & (binary_map_result == 1)
+
+        # Define flashflood area: stream network > 4 and nh_threshold =1
+        flashflood_area = stream_network_map > self.stream_threshold
+        flashflood_locations = (stream_network_map > self.stream_threshold) & (binary_map_result == 1)
+
+        return landslide_locations, flashflood_locations
+
+    def show_error_message(self, message):
+        messagebox.showerror("Error", message)
+
+
+class RainfallGUI:
+  
+
+    # Global variables to store data for plotting
+    rainfall_data = None
+    rainfall_dates = None
+
+    # Function to read time series of rainfall maps
+    def read_rainfall_data(folder_path):
+        global rainfall_data, rainfall_dates
+
+        # List all rainfall files in the folder
+        rainfall_files = [f for f in os.listdir(folder_path) if f.endswith('.tif')]
+        rainfall_files.sort()  # Sort files to ensure correct temporal order
+
+        # Read the first rainfall map to get metadata
+        with rasterio.open(os.path.join(folder_path, rainfall_files[0])) as src:
+             rain_data_shape = src.shape
+
+        # Initialize a 3D array to store all rainfall maps
+        rainfall_data = np.zeros((len(rainfall_files), rain_data_shape[0], rain_data_shape[1]), dtype=np.float32)
+
+        # Store all rainfall maps into the 3D array
+        for i, rainfall_file in enumerate(rainfall_files):
+            with rasterio.open(os.path.join(folder_path, rainfall_file)) as src:
+                resampled_data = src.read(out_shape=(rain_data_shape[0], rain_data_shape[1]), resampling=Resampling.bilinear)
+                rainfall_data[i, :, :] = resampled_data
+
+        # Assuming filenames are in the format 'YYYY-MM-DD_Rainfall.tif'
+        def extract_date_from_filename(filename):
+            date_str = filename.split('_')[0]  # Get the date part before '_'
+            return datetime.strptime(date_str, '%Y-%m-%d')
+
+        # Read the dates from filenames
+        rainfall_dates = [extract_date_from_filename(f) for f in rainfall_files]
+
+        return rainfall_data, rainfall_dates
+
+    # Function to plot spatially averaged daily rainfall as time series
+    def plot_spatially_averaged_rainfall():
+        global rainfall_data, rainfall_dates
+
+        if rainfall_data is not None and rainfall_dates is not None:
+            # Calculate spatially averaged daily rainfall
+            spatially_averaged_rainfall = np.mean(rainfall_data, axis=(1, 2))
+
+            # Plot time series with DD-MM format dates
+            plt.figure(figsize=(12, 6))
+            plt.plot(rainfall_dates, spatially_averaged_rainfall, marker='o', linestyle='-', color='b')
+            plt.title('Spatially Averaged Daily Rainfall Time Series')
+            plt.xlabel('Date')
+            plt.ylabel('Rainfall (mm)')
+            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d-%m'))
+            plt.gca().xaxis.set_major_locator(mdates.DayLocator())
+            plt.gcf().autofmt_xdate()  # Auto-format the dates for better readability
+            plt.grid(True)
+            plt.show()
+        else:
+            messagebox.showerror("Error", "Please load rainfall data first.")
+
+        # Assuming filenames are in the format 'YYYY-MM-DD_Rainfall.tif'
+        def extract_date_from_filename(filename):
+            date_str = filename.split('_')[0]  # Get the date part before '_'
+            return datetime.strptime(date_str, '%Y-%m-%d')
+
+    # Function to calculate rainfall statistics
+    def rainfall_statistics(x, event_date):
+        global rainfall_data, rainfall_dates
+
+        if rainfall_data is not None and rainfall_dates is not None:
+            # Find the index of the event date in the rainfall dates list
+            event_date_index = rainfall_dates.index(event_date)
+
+            # Initialize a list to hold all statistics
+            all_stats = []
+
+            # Loop to calculate statistics for x days before and after the event
+            for period in ['Before', 'After']:
+                # Convert 'Before' and 'After' to True and False to avoid confusion
+                before = (period == 'Before')
+
+                # Determine the start and end indices for the data slice
+                if before:
+                    start_index = max(event_date_index - x + 1, 0)
+                    end_index = event_date_index + 1
+                else:
+                    start_index = event_date_index + 1
+                    end_index = min(event_date_index + 1 + x, len(rainfall_data))
+
+                # Slice the rainfall data
+                data_slice = rainfall_data[start_index:end_index]
+
+                # Calculate statistics
+                mean_rainfall = np.mean(data_slice)
+                median_rainfall = np.median(data_slice)
+                max_rainfall = np.max(data_slice)
+                sum_rainfall = np.sum(data_slice)
+
+                if before:
+                    stat_date = rainfall_dates[event_date_index - x]  # Adjusted to correctly reflect the 'Before' period
+                else:
+                    stat_date = rainfall_dates[min(event_date_index + x, len(rainfall_data) - 1)]  # 'After' period
+
+                # Append statistics to the list
+                all_stats.append((stat_date, period, x, mean_rainfall, median_rainfall, max_rainfall, sum_rainfall))
+
+            return all_stats
+        else:
+            return None
+
+    # Function to handle button click to calculate and export statistics
+    def calculate_and_export_statistics():
+        global rainfall_data, rainfall_dates
+
+        if rainfall_data is not None and rainfall_dates is not None:
+            # Get user inputs
+            event_date_str = entry_event_date.get()
+            event_date = datetime.strptime(event_date_str, '%Y-%m-%d')
+
+            # List to hold all statistics
+            all_stats = []
+
+            # Loop to calculate statistics for 1, 2, and 3 days before and after the event
+            for x in [1, 2, 3]:
+                stats = rainfall_statistics(x, event_date)
+                all_stats.extend(stats)
+
+            # Convert to DataFrame
+            columns = ['Date', 'Period', 'Days', 'Mean', 'Median', 'Max', 'Sum']
+            final_results = pd.DataFrame(all_stats, columns=columns)
+            messagebox.showinfo("Statistics Calculated", "Statistics calculated successfully.")
+
+            # Export to CSV
+            export_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")], title="Export Statistics To CSV")
+            if export_path:
+                final_results.to_csv(export_path, index=False)
+                messagebox.showinfo("Export Successful", f"Statistics exported to {export_path}")
+            else:
+                messagebox.showwarning("Export Cancelled", "Export operation cancelled.")
+        else:
+            messagebox.showerror("Error", "Please load rainfall data first.")
+
+    # Create the main GUI window
+    root = tk.Tk()
+    root.title("Rainfall Data Analysis")
+
+    # Function to load rainfall data and update UI elements
+    def load_rainfall_data():
+        global rainfall_data, rainfall_dates
+        folder_path = filedialog.askdirectory(title="Select Rainfall Maps Folder")
+        if folder_path:
+            rainfall_data, rainfall_dates = read_rainfall_data(folder_path)
+            messagebox.showinfo("Data Loaded", "Rainfall data loaded successfully.")
+
+    # Button to load rainfall data
+    load_data_button = tk.Button(root, text="Load Rainfall Data", command=load_rainfall_data)
+    load_data_button.pack(pady=20)
+
+    # Button to plot spatially averaged daily rainfall time series
+    plot_data_button = tk.Button(root, text="Plot Spatially Averaged Rainfall", command=plot_spatially_averaged_rainfall)
+    plot_data_button.pack(pady=10)
+
+    # Create a frame for the statistics section
+    statistics_frame = tk.Frame(root)
+    statistics_frame.pack(pady=20)
+
+    # Labels and entry fields for user input
+    label_event_date = tk.Label(statistics_frame, text="Event Date (YYYY-MM-DD):")
+    label_event_date.grid(row=0, column=0, padx=5, pady=5, sticky='e')
+
+    entry_event_date = tk.Entry(statistics_frame)
+    entry_event_date.grid(row=0, column=1, padx=5, pady=5)
+
+    # Button to calculate and export statistics
+    calculate_button = tk.Button(statistics_frame, text="Calculate and Export Statistics", command=calculate_and_export_statistics)
+    calculate_button.grid(row=1, column=0, columnspan=2, pady=10)
+
+
+if __name__ == "__main__":
+     root = tk.Tk()
+     app = HazardAnalysisGUI(root)
+     root.mainloop()   
+    
